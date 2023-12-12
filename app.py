@@ -1,47 +1,65 @@
+# Install library yang diperlukan jika belum terinstall
+# !pip install streamlit pandas scikit-learn
+
 import streamlit as st
 import pandas as pd
-from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
+from sklearn.neighbors import KNeighborsClassifier
 from sklearn.metrics import accuracy_score, classification_report
 
-# Load dataset (contoh menggunakan dataset Gagal Jantung dari kaggle)
-url = "https://raw.githubusercontent.com/andrychowanda/heart-failure-prediction/main/heart_failure_clinical_records_dataset.csv"
+# Load dataset
+url = "https://archive.ics.uci.edu/ml/machine-learning-databases/00519/heart_failure_clinical_records_dataset.csv"
 df = pd.read_csv(url)
 
-# Preprocessing dataset
+# Sidebar
+st.sidebar.title("Parameter Model")
+test_size = st.sidebar.slider("Porsi Data Uji", 0.1, 0.5, 0.2, 0.05)
+
+# Model
+def knn_model(X_train, y_train, k):
+    knn = KNeighborsClassifier(n_neighbors=k)
+    knn.fit(X_train, y_train)
+    return knn
+
+# Main
+st.title("Prediksi Kelangsungan Hidup Pasien Gagal Jantung")
+st.write("Dataset: [Heart Failure Clinical Records](https://archive.ics.uci.edu/ml/machine-learning-databases/00519/heart_failure_clinical_records_dataset.csv)")
+
+# Tampilkan beberapa baris pertama dataset
+st.subheader("Data Preview")
+st.write(df.head())
+
+# Pisahkan fitur dan label
 X = df.drop('DEATH_EVENT', axis=1)
 y = df['DEATH_EVENT']
 
-# Train-test split
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+# Pisahkan data menjadi data latih dan data uji
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=42)
 
-# Model training
-model = RandomForestClassifier()
-model.fit(X_train, y_train)
+# Sidebar untuk parameter k
+k = st.sidebar.slider("Jumlah Tetangga (k)", 1, 20, 5, 1)
 
-# Streamlit app
-def main():
-    st.title("Aplikasi Prediksi Kelangsungan Hidup Pasien Gagal Jantung")
-    
-    # Input form
-    age = st.slider("Usia Pasien", min_value=20, max_value=100, value=50)
-    creatinine_phosphokinase = st.slider("Kreatinin Phosphokinase", min_value=10, max_value=1000, value=200)
-    ejection_fraction = st.slider("Ejection Fraction", min_value=10, max_value=80, value=40)
-    platelets = st.slider("Jumlah Platelets", min_value=50000, max_value=300000, value=150000)
-    serum_creatinine = st.slider("Serum Creatinine", min_value=0.5, max_value=10.0, value=1.0)
-    serum_sodium = st.slider("Serum Sodium", min_value=100, max_value=150, value=135)
-    
-    # Predict button
-    if st.button("Prediksi Kelangsungan Hidup"):
-        input_data = [[age, anaemia, creatinine_phosphokinase, diabetes, ejection_fraction, high_blood_pressure, platelets, serum_creatinine, serum_sodium, sex, smoking, time]]
-        prediction = model.predict(input_data)
-        probability = model.predict_proba(input_data)[:, 1]
-        
-        st.subheader("Hasil Prediksi:")
-        if prediction[0] == 0:
-            st.success(f"Pasien diperkirakan akan hidup dengan probabilitas {probability[0]:.2f}")
-        else:
-            st.error(f"Pasien diperkirakan tidak akan hidup dengan probabilitas {probability[0]:.2f}")
+# Training model
+knn_classifier = knn_model(X_train, y_train, k)
 
-if __name__ == "__main__":
-    main()
+# Prediksi
+y_pred = knn_classifier.predict(X_test)
+
+# Evaluasi model
+accuracy = accuracy_score(y_test, y_pred)
+classification_rep = classification_report(y_test, y_pred)
+
+# Tampilkan hasil evaluasi
+st.subheader("Evaluasi Model")
+st.write(f"Akurasi: {accuracy:.2f}")
+st.write("Laporan Klasifikasi:")
+st.code(classification_rep)
+
+# Prediksi satu sampel
+st.subheader("Prediksi Individu")
+sample_data = st.text_input("Masukkan data pasien (cth: age, anaemia, creatinine_phosphokinase, diabetes, ejection_fraction, high_blood_pressure, platelets, serum_creatinine, serum_sodium, sex, smoking, time):")
+sample_data = [float(i) for i in sample_data.split(',')]
+prediction = knn_classifier.predict([sample_data])
+
+if st.button("Prediksi"):
+    st.write(f"Prediksi Kelangsungan Hidup: {'Hidup' if prediction[0] == 0 else 'Meninggal'}")
